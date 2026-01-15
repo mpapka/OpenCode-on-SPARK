@@ -112,6 +112,111 @@ Edit `CTX_SIZE` in `setup.sh`:
 # To:     CTX_SIZE=196608  # For 192K context
 ```
 
+## Using Different Models
+
+The default setup uses MiniMax-M2.1, but you can use any GGUF model that fits in memory (~119GB usable).
+
+### Step 1: Download the Model
+
+```bash
+# Create model directory
+mkdir -p ~/models/<model-name>
+cd ~/models/<model-name>
+
+# Download GGUF file(s) from HuggingFace
+wget https://huggingface.co/<repo>/resolve/main/<model-file>.gguf
+```
+
+### Step 2: Edit setup.sh Variables
+
+Edit the configuration section at the top of `setup.sh`:
+
+```bash
+# Configuration
+MODEL_DIR="$HOME/models/<model-name>"
+MODEL_NAME="<Model-Display-Name>"
+MODEL_FILE1="<model-file>.gguf"        # Primary GGUF file
+MODEL_FILE2=""                          # Leave empty if single file
+MODEL_URL_BASE="https://huggingface.co/<repo>/resolve/main"
+MODEL_SIZE1=<size-in-bytes>            # For download verification
+MODEL_SIZE2=0                           # 0 if no second file
+```
+
+### Step 3: Update OpenCode Config
+
+Edit `opencode.json` (and `~/.config/opencode/opencode.json`):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "llama-cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "<Model-Display-Name>",
+      "options": {
+        "baseURL": "http://localhost:8080/v1"
+      },
+      "models": {
+        "<model-id>": {
+          "name": "<Model-Display-Name>",
+          "tools": true
+        }
+      }
+    }
+  },
+  "model": "llama-cpp/<model-id>"
+}
+```
+
+### Step 4: Launch
+
+```bash
+./setup.sh --launch-only
+```
+
+### Example: Using Qwen3-Coder-30B
+
+```bash
+# Download
+mkdir -p ~/models/qwen3-coder
+cd ~/models/qwen3-coder
+wget https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-GGUF/resolve/main/qwen3-coder-30b-a3b-q4_k_m.gguf
+
+# Edit setup.sh
+MODEL_DIR="$HOME/models/qwen3-coder"
+MODEL_NAME="Qwen3-Coder-30B-A3B"
+MODEL_FILE1="qwen3-coder-30b-a3b-q4_k_m.gguf"
+MODEL_FILE2=""
+MODEL_SIZE1=18500000000  # ~18.5GB
+
+# Edit opencode.json
+{
+  "provider": {
+    "llama-cpp": {
+      "models": {
+        "qwen3-coder": {
+          "name": "Qwen3-Coder-30B-A3B",
+          "tools": true
+        }
+      }
+    }
+  },
+  "model": "llama-cpp/qwen3-coder"
+}
+```
+
+### Compatible Models (Single SPARK)
+
+| Model | Size | Download |
+|-------|------|----------|
+| MiniMax-M2.1 UD-Q2_K_XL | ~86GB | [unsloth/MiniMax-M2.1-GGUF](https://huggingface.co/unsloth/MiniMax-M2.1-GGUF) |
+| Qwen3-Coder-30B-A3B Q4_K_M | ~18GB | [Qwen/Qwen3-Coder-30B-A3B-GGUF](https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-GGUF) |
+| Llama-3.1-70B Q4_K_M | ~40GB | [bartowski/Meta-Llama-3.1-70B-Instruct-GGUF](https://huggingface.co/bartowski/Meta-Llama-3.1-70B-Instruct-GGUF) |
+| DeepSeek-Coder-V2-Lite Q4_K_M | ~10GB | [bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF](https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF) |
+| Mistral-7B Q4_K_M | ~4GB | [TheBloke/Mistral-7B-Instruct-v0.2-GGUF](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF) |
+
+See `docs/MODEL_SELECTION.md` for more options and quantization details.
+
 ## Troubleshooting
 
 ### Server won't start
