@@ -1,259 +1,156 @@
-# OpenCode on DGX Spark
+# OpenCode on DGX SPARK
 
-Run [OpenCode](https://opencode.ai) with local LLMs on NVIDIA DGX Spark using llama.cpp.
+Run [OpenCode](https://opencode.ai) with local LLMs on NVIDIA DGX Spark hardware.
 
-This repository provides scripts to set up a complete local AI coding assistant environment on DGX Spark hardware, using MiniMax-M2.1 as the underlying model.
+This repository provides two infrastructure options for running AI coding assistants locally:
 
-## Overview
-
-- **Hardware**: NVIDIA DGX Spark with GB10 GPU (128GB unified memory)
-- **Model**: [MiniMax-M2.1](https://huggingface.co/unsloth/MiniMax-M2.1-GGUF) - 456B MoE (21B active), optimized for coding and agentic tasks
-- **Quantization**: UD-Q2_K_XL (~86GB) - fits comfortably in single DGX Spark
-- **Runtime**: [llama.cpp](https://github.com/ggml-org/llama.cpp) with CUDA backend
-- **Frontend**: [OpenCode](https://opencode.ai) - AI coding assistant CLI
+| Setup | Directory | Description |
+|-------|-----------|-------------|
+| **Single SPARK** | [`single-spark/`](single-spark/) | One DGX Spark using llama.cpp |
+| **Dual SPARK** | [`dual-spark/`](dual-spark/) | Two DGX Sparks using Ray + vLLM |
 
 ## Quick Start
 
+### Single SPARK (Recommended for simplicity)
+
 ```bash
-# Clone this repo
-git clone https://github.com/rick-stevens-ai/OpenCode-on-SPARK.git
-cd OpenCode-on-SPARK
-
-# Run full setup (download model, install OpenCode, configure, launch)
-./setup-opencode-minimax.sh
-
-# Once complete, start coding!
+cd single-spark
+./setup.sh
 opencode
 ```
 
-## What the Setup Script Does
+### Dual SPARK (For larger models or higher throughput)
 
-The script automates the entire setup process:
-
-1. **Downloads MiniMax-M2.1 UD-Q2_K_XL** (~86GB, 2 files) from HuggingFace
-   - Supports resume if interrupted
-   - Verifies file integrity
-
-2. **Builds llama.cpp with CUDA support** (if not already built)
-   - Automatically detects CUDA installation
-   - Finds compatible g++ compiler (g++-13, g++-12, or g++)
-   - Configures with CUDA, RPC, and FP16 support
-   - Compiles with all CPU cores
-
-3. **Installs OpenCode** if not already present
-   - Downloads from official source (opencode.ai)
-   - Automatically adds to PATH in ~/.zshrc or ~/.bashrc
-   - Detects installation in ~/.opencode/bin or ~/.local/bin
-
-4. **Generates configuration** (`~/.config/opencode/opencode.json`)
-   - Configures llama.cpp as the provider
-   - Sets up tool calling support
-   - Compatible with OpenCode 1.1.15+
-
-5. **Launches llama-server** with optimal settings
-   - GPU acceleration (all layers offloaded)
-   - Jinja templates for proper chat formatting
-   - **128K context window** (131,072 tokens)
-
-## Usage
-
+**On SPARK1 (Head):**
 ```bash
-# Full setup (first time)
-./setup-opencode-minimax.sh
-
-# Check status
-./status.sh
-
-# Shutdown server
-./shutdown.sh
-
-# Download only (no server launch)
-./setup-opencode-minimax.sh --download-only
-
-# Launch server only (after download)
-./setup-opencode-minimax.sh --launch-only
-
-# Test inference
-./setup-opencode-minimax.sh --test
+cd dual-spark
+./startHead.sh
+./serve.sh
 ```
 
-## Scripts
+**On SPARK2 (Worker):**
+```bash
+cd dual-spark
+./startWorker.sh
+```
 
-| Script | Description |
-|--------|-------------|
-| `setup-opencode-minimax.sh` | Full setup: download, install, configure, launch |
-| `status.sh` | Show status of model, server, and configuration |
-| `shutdown.sh` | Clean shutdown of llama-server |
+## Comparison
 
-## Requirements
+| Feature | Single SPARK | Dual SPARK |
+|---------|-------------|------------|
+| **Hardware** | 1x DGX Spark | 2x DGX Sparks |
+| **Memory** | ~119GB usable | ~238GB usable |
+| **Runtime** | llama.cpp | vLLM on Ray cluster |
+| **Setup Complexity** | Simple (one script) | Moderate (head + worker + serve) |
+| **Default Model** | MiniMax-M2.1 UD-Q2_K_XL | MiniMax-M2.1 or OSS120B |
+| **Max Model Size** | ~100GB | ~200GB |
+| **Context Window** | 128K tokens | 128K tokens |
+| **Inference** | ~30-35 tok/s | Varies by model |
+| **Tool Support** | Yes | Yes |
 
-### Hardware
-- NVIDIA GPU with 85GB+ VRAM (tested on DGX Spark GB10)
+## Hardware Requirements
+
+### Single SPARK
+- NVIDIA DGX Spark with GB10 GPU (128GB unified memory)
 - ~90GB disk space for model
-- Multi-core CPU for faster compilation
-
-### Software (automatically checked/installed by script)
-- Ubuntu 22.04+ or similar Linux
 - CUDA 12.0+ or 13.0+
-- cmake, g++, git, wget
 
-The script will automatically:
-- Detect and use your CUDA installation
-- Find a compatible g++ compiler (g++-13, g++-12, or g++)
-- Clone and build llama.cpp with CUDA support
-- Install OpenCode CLI
+### Dual SPARK
+- 2x NVIDIA DGX Spark with GB10 GPU
+- Network connectivity between nodes (InfiniBand or Ethernet)
+- Docker with NVIDIA container runtime
+- SSH access between nodes (for coordinated shutdown)
 
-**No manual building required!**
+## When to Choose Each Setup
 
-## Model Information
+### Choose Single SPARK when:
+- You have one DGX Spark available
+- The model fits in ~119GB memory
+- You want the simplest setup
+- You prefer direct llama.cpp performance
+- You're doing development or testing
 
-### MiniMax-M2.1
+### Choose Dual SPARK when:
+- You have two DGX Sparks available
+- You need larger models (>119GB)
+- You want tensor parallelism across GPUs
+- You need vLLM's optimized serving
+- You're running production workloads
 
-| Property | Value |
-|----------|-------|
-| Architecture | Mixture of Experts (MoE) |
-| Total Parameters | 456B |
-| Active Parameters | 21B |
-| Quantization | UD-Q2_K_XL |
-| Size on Disk | ~86GB |
-| Context Length | Up to 1M tokens |
-| License | Modified-MIT |
+## Model Support
 
-**Optimized for:**
-- Multi-language code generation
-- Tool use and function calling
-- Long-horizon planning
-- Agentic workflows
+Both setups support the same models, but with different memory constraints:
 
-### Performance on DGX Spark
+| Model | Size | Single SPARK | Dual SPARK |
+|-------|------|--------------|------------|
+| MiniMax-M2.1 UD-Q2_K_XL | ~86GB | Yes | Yes |
+| MiniMax-M2.1 Q3_K_M | ~209GB | No | Yes |
+| OSS120B | ~120GB | No | Yes |
+| Qwen3-Coder-30B-A3B | ~20GB | Yes | Yes |
+| Llama-3.1-70B Q4_K_M | ~40GB | Yes | Yes |
 
-| Metric | Value |
-|--------|-------|
-| Inference Speed | ~30-35 tokens/second |
-| Memory Usage | ~86GB of 128GB |
-| Startup Time | ~2-3 minutes |
+## Project Structure
 
-## Configuration
-
-The setup script creates `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "llama-cpp": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "MiniMax-M2.1 (llama.cpp)",
-      "options": {
-        "baseURL": "http://localhost:8080/v1"
-      },
-      "models": {
-        "minimax-m2.1": {
-          "name": "MiniMax-M2.1 UD-Q2_K_XL",
-          "tools": true,
-          "temperature": 1.0,
-          "topP": 0.95
-        }
-      }
-    }
-  },
-  "model": "llama-cpp/minimax-m2.1"
-}
+```
+OpenCode-on-SPARK/
+├── README.md                 # This file
+├── LICENSE                   # MIT License
+├── single-spark/             # Single SPARK setup (llama.cpp)
+│   ├── README.md
+│   ├── setup.sh              # Full setup script
+│   ├── status.sh             # Status checker
+│   ├── shutdown.sh           # Clean shutdown
+│   ├── opencode.json         # OpenCode config
+│   └── docs/                 # Documentation
+└── dual-spark/               # Dual SPARK setup (Ray + vLLM)
+    ├── README.md
+    ├── QUICKSTART.md         # Quick reference
+    ├── runCluster.sh         # Ray cluster launcher
+    ├── startHead.sh          # Head node setup
+    ├── startWorker.sh        # Worker node setup
+    ├── serve.sh              # vLLM serving
+    ├── shutdown.sh           # Distributed shutdown
+    ├── opencode.json         # OpenCode config
+    └── docs/                 # Documentation
 ```
 
-### Customizing
+## Switching Between Setups
 
-The script uses 128K context by default. To change it, edit `CTX_SIZE` in the script:
+To switch from one setup to another:
 
 ```bash
-# Edit setup-opencode-minimax.sh
-# Change: CTX_SIZE=131072
-# To:     CTX_SIZE=196608  # For 192K context (model's training size)
+# Switch to Single SPARK
+cd single-spark
+./setup.sh --launch-only
+cp opencode.json ~/.config/opencode/opencode.json
 
-# Then restart the server
-./setup-opencode-minimax.sh --launch-only
+# Switch to Dual SPARK
+cd dual-spark
+./startHead.sh  # on head node
+./serve.sh      # on head node
+./startWorker.sh  # on worker node
+cp opencode.json ~/.config/opencode/opencode.json
 ```
 
-Or launch manually with custom settings:
+## Documentation
 
-```bash
-~/llama.cpp/build/bin/llama-server \
-  -m ~/models/minimax-m2.1/MiniMax-M2.1-UD-Q2_K_XL-00001-of-00002.gguf \
-  --ctx-size 196608 \
-  --n-gpu-layers 99 \
-  --port 8080 \
-  --jinja
-```
+Each setup directory contains its own documentation:
 
-## Troubleshooting
+- **Single SPARK**: `single-spark/docs/`
+  - Building llama.cpp
+  - Model selection guide
+  - OpenCode configuration
 
-### Server won't start
-
-Check the log file:
-```bash
-tail -100 /tmp/llama-server-minimax-m2.1.log
-```
-
-### Out of memory
-
-The UD-Q2_K_XL quantization requires ~86GB. If you have less memory, try a smaller quantization:
-- `UD-IQ2_XXS` (~50GB)
-- `UD-IQ1_M` (~40GB)
-
-### Slow inference
-
-Ensure GPU layers are enabled:
-```bash
-# Check GPU usage
-nvidia-smi
-
-# Verify all layers on GPU
-grep "offloading" /tmp/llama-server-minimax-m2.1.log
-```
-
-### OpenCode can't connect
-
-Verify the server is running:
-```bash
-curl http://localhost:8080/health
-```
-
-### OpenCode command not found
-
-OpenCode is installed to `~/.opencode/bin`. Reload your shell:
-```bash
-exec zsh    # or: exec bash
-```
-
-Or manually add to PATH:
-```bash
-export PATH="$HOME/.opencode/bin:$PATH"
-```
-
-### Configuration error about temperature
-
-If you see an error about temperature being a number instead of boolean, the config format has been updated. Re-run:
-```bash
-./setup-opencode-minimax.sh --launch-only
-```
-
-This will regenerate the config with the correct format.
-
-## Alternative Models
-
-The setup script is configured for MiniMax-M2.1, but you can adapt it for other models:
-
-| Model | Size | Notes |
-|-------|------|-------|
-| Qwen3-Coder-30B-A3B | ~20GB | Smaller, faster, good for coding |
-| DeepSeek-V3 | ~400GB | Requires multi-node RPC |
-| Llama-3.1-70B | ~40GB | General purpose |
+- **Dual SPARK**: `dual-spark/docs/`
+  - Model selection guide
+  - OpenCode configuration
 
 ## Related Projects
 
-- [spark-multi-node](https://github.com/rick-stevens-ai/spark-multi-node) - Multi-node inference scripts for DGX Spark
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) - LLM inference engine
 - [OpenCode](https://github.com/sst/opencode) - AI coding assistant
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - LLM inference engine
+- [vLLM](https://github.com/vllm-project/vllm) - High-throughput LLM serving
+- [Ray](https://www.ray.io/) - Distributed computing framework
 
 ## License
 
@@ -264,3 +161,4 @@ MIT License - see [LICENSE](LICENSE)
 - [Unsloth](https://github.com/unsloth/unsloth) for optimized GGUF quantizations
 - [MiniMax](https://www.minimax.io/) for releasing M2.1 to open source
 - [ggml-org](https://github.com/ggml-org) for llama.cpp
+- [NVIDIA](https://www.nvidia.com/) for DGX Spark and vLLM container
