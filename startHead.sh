@@ -107,10 +107,21 @@ nohup bash ./run_cluster.sh "$vllmImage" "$headIp" --head "$hfCacheDir" \
   -e RAY_memory_monitor_refresh_ms=0 \
   >/tmp/runClusterHead.log 2>&1 &
 
-logOk "Head launcher pid=$! (logs: /tmp/runClusterHead.log)"
+headLauncherPid=$!
+mkdir -p "$HOME/.opencode"
+echo "$headLauncherPid" > "$HOME/.opencode/head_launcher.pid"
+logOk "Head launcher pid=$headLauncherPid (logs: /tmp/runClusterHead.log)"
 
 headC="$(waitForHeadContainer)"
 logOk "Head container is up: $headC"
 
-logInfo "NOW start the worker on aspark01:"
+# Save head container name for shutdown
+echo "$headC" > "$HOME/.opencode/head_container"
+logInfo "Saved head container name to ~/.opencode/head_container"
+
+logInfo "NOW start the worker on the other SPARK node:"
 logInfo "  ./startWorker.sh"
+logInfo ""
+logInfo "For coordinated shutdown across both nodes, configure worker host:"
+logInfo "  echo 'worker-hostname-or-ip' > ~/.opencode/worker_host"
+logInfo "Then use: ./shutdown-distributed.sh --all"

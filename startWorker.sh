@@ -123,10 +123,20 @@ nohup bash ./run_cluster.sh "$vllmImage" "$headIp" --worker "$hfCacheDir" \
   -e MASTER_ADDR="$headIp" \
   >/tmp/runClusterWorker.log 2>&1 &
 
-logOk "Worker launcher pid=$! (logs: /tmp/runClusterWorker.log)"
+workerLauncherPid=$!
+mkdir -p "$HOME/.opencode"
+echo "$workerLauncherPid" > "$HOME/.opencode/worker_launcher.pid"
+logOk "Worker launcher pid=$workerLauncherPid (logs: /tmp/runClusterWorker.log)"
 
 workerC="$(waitForWorkerContainer)"
 logOk "Worker container is up: $workerC"
 logOk "Worker successfully joined the cluster at $headIp"
+
+# Save worker info for coordinated shutdown
+echo "$workerIp" > "$HOME/.opencode/worker_ip"
+echo "$workerC" > "$HOME/.opencode/worker_container"
+logInfo "Saved worker info to ~/.opencode/"
+
 logInfo "Check cluster status from head node:"
 logInfo "  docker exec <head-container> ray status"
+logInfo "To shutdown: ./shutdown-distributed.sh"
