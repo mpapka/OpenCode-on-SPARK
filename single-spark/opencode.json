@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "llama-cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "MiniMax-M2.1 (llama.cpp)",
+      "options": {
+        "baseURL": "http://localhost:8080/v1"
+      },
+      "models": {
+        "minimax-m2.1": {
+          "name": "MiniMax-M2.1 UD-Q2_K_XL",
+          "tools": true
+        }
+      }
+    }
+  },
+  "model": "llama-cpp/minimax-m2.1"
+}
